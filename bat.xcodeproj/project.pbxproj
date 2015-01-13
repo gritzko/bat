@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		8B165BF81A604A7E00267D3E /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8B165BF71A604A7E00267D3E /* main.cpp */; };
+		8B165BF81A604A7E00267D3E /* bat.c in Sources */ = {isa = PBXBuildFile; fileRef = 8B165BF71A604A7E00267D3E /* bat.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -24,7 +24,7 @@
 
 /* Begin PBXFileReference section */
 		8B165BF41A604A7E00267D3E /* bat */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = bat; sourceTree = BUILT_PRODUCTS_DIR; };
-		8B165BF71A604A7E00267D3E /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
+		8B165BF71A604A7E00267D3E /* bat.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = bat.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,7 +57,7 @@
 		8B165BF61A604A7E00267D3E /* bat */ = {
 			isa = PBXGroup;
 			children = (
-				8B165BF71A604A7E00267D3E /* main.cpp */,
+				8B165BF71A604A7E00267D3E /* bat.c */,
 			);
 			path = bat;
 			sourceTree = "<group>";
@@ -118,7 +118,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8B165BF81A604A7E00267D3E /* main.cpp in Sources */,
+				8B165BF81A604A7E00267D3E /* bat.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -158,9 +158,16 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"/Applications/Xcode-Beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include",
+					/usr/local/include,
+				);
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
 				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = "-L/usr/local/lib";
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -193,8 +200,15 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"/Applications/Xcode-Beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include",
+					/usr/local/include,
+				);
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
 				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				MTL_ENABLE_DEBUG_INFO = NO;
+				OTHER_LDFLAGS = "-L/usr/local/lib";
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -202,6 +216,19 @@
 		8B165BFC1A604A7E00267D3E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "c++98";
+				CLANG_CXX_LIBRARY = "libstdc++";
+				GCC_C_LANGUAGE_STANDARD = c99;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"/Applications/Xcode-Beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include",
+					"/usr/local/include/**",
+				);
+				LIBRARY_SEARCH_PATHS = "";
+				OTHER_LDFLAGS = (
+					"-lpcre2-8",
+					"-L/usr/local/lib",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -209,6 +236,19 @@
 		8B165BFD1A604A7E00267D3E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "c++98";
+				CLANG_CXX_LIBRARY = "libstdc++";
+				GCC_C_LANGUAGE_STANDARD = c99;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"/Applications/Xcode-Beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include",
+					"/usr/local/include/**",
+				);
+				LIBRARY_SEARCH_PATHS = "";
+				OTHER_LDFLAGS = (
+					"-lpcre2-8",
+					"-L/usr/local/lib",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
@@ -232,6 +272,7 @@
 				8B165BFD1A604A7E00267D3E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};

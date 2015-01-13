@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VariablesViewState
+   version = "1.0">
+   <ContextStates>
+      <ContextState
+         contextName = "main:bat.c">
+      </ContextState>
+      <ContextState
+         contextName = "compare_bufs:bat.c">
+      </ContextState>
+      <ContextState
+         contextName = "write_buf:bat.c">
+      </ContextState>
+      <ContextState
+         contextName = "read_buf:bat.c">
+         <PersistentStrings>
+            <PersistentString
+               value = "errno">
+            </PersistentString>
+         </PersistentStrings>
+      </ContextState>
+      <ContextState
+         contextName = "read_till_delim:bat.c">
+         <PersistentStrings>
+            <PersistentString
+               value = "mem_head">
+            </PersistentString>
+         </PersistentStrings>
+      </ContextState>
+      <ContextState
+         contextName = "read_cycle:bat.c">
+      </ContextState>
+   </ContextStates>
+</VariablesViewState>
