@@ -27,7 +27,7 @@ load tests as well as unit and black box spec compliance tests.\n\n";
 #include <pcre2.h>
 
 int diff_flag = 0,
-verbose_flag = 1;
+    verbose_flag = 0;
 
 #define VERBOSE if (verbose_flag) printf
 
@@ -228,10 +228,7 @@ int open_process (const char* command, int fildes[2]) {
     strcpy(_command, command);
     char* prog = strtok(_command," ");
     char* args[10];
-    VERBOSE("starting %s\n",prog);
-    for(int i=0; i<10 && (args[i]=strtok(NULL," ")); i++) {
-        VERBOSE("\t%s\n",args[i]);
-    }
+    for(int i=0; i<10 && (args[i]=strtok(NULL," ")); i++);
     
     int pipe_in[2], pipe_out[2];
     if (pipe(pipe_in)==-1 || pipe(pipe_out)==-1) {
@@ -275,8 +272,9 @@ int main(int argc, char * const * argv) {
     long m;
     struct timeval timetv = {0,0};
     signal (SIGPIPE, sigpipe_handler);
+    int fails = 0, tests = 0;
     
-    while ((c = getopt(argc, argv, "v:S:C:s:Rr:t:T:m:d")) != -1) {
+    while ((c = getopt(argc, argv, "vS:C:s:Rr:t:T:m:d")) != -1) {
         switch(c) {
             case 'S': // server
                 if ( -1 == open_process(optarg,server) )  {
@@ -296,6 +294,7 @@ int main(int argc, char * const * argv) {
                 break;
             case 'R':
                 record = 1;
+                VERBOSE("recording to stdout\n");
                 break;
             case 'r': // record a session
                 record = open(optarg,
@@ -313,6 +312,8 @@ int main(int argc, char * const * argv) {
                 if ( -1 == (script = open(optarg,O_RDONLY)) ) {
                     perror("can't open script");
                     return -6;
+                } else {
+                    VERBOSE("open script %s\n",optarg);
                 }
                 break;
             case 'T':
@@ -334,6 +335,7 @@ int main(int argc, char * const * argv) {
             case 'm':
                 if (1==sscanf(optarg, "%ld", &m)) {
                     MEM_SIZE = m;
+                    VERBOSE("using %ld bytes of RAM\n",m);
                 } else {
                     fprintf(stderr,"m: max memory allocation in bytes");
                 }
@@ -361,7 +363,7 @@ int main(int argc, char * const * argv) {
     
     struct buf_t in_ref = {NULL,0}, out_ref = {NULL,0};
     struct buf_t in_buf = {NULL,0}, out_buf = {NULL,0};
-    int scr=0;
+    ssize_t scr=0;
     
     if (!script && !(*client&&*server)) {
         // what?!
@@ -385,9 +387,11 @@ int main(int argc, char * const * argv) {
             }
             read_buf(server[0], &out_buf, SURE_WAIT, NULL);
             if (script) {
+                tests++;
                 if (0==compare_bufs(out_ref,out_buf)) {
                     printf("OK\n");
                 } else {
+                    fails++;
                     printf("FAIL\n");
                 }
             }
@@ -395,7 +399,7 @@ int main(int argc, char * const * argv) {
         if (*client) {
             write_buf(client[1], *server ? out_buf : out_ref);
         }
-        if (record && (in_buf.len || out_buf.len)) {
+        if (record && (script || in_buf.len || out_buf.len)) {
             write_cycle( record,
                         *client ? in_buf : in_ref,
                         *server ? out_buf : out_ref );
@@ -411,5 +415,5 @@ int main(int argc, char * const * argv) {
     if (script) close(script);
     if (record) close(record);
     
-    return 0;
+    return fails;
 }
