@@ -11,7 +11,7 @@ the resulting output is compared with the expected one. \
 The output is not necessarily static as it may include timestamps, \
 variable whitespace etc. For that purpose, the user may define PCRE \
 regular expressions to collapse or unify those variable pieces. \
-The tool is written in C++ with various optimizations to be used for \
+The tool is written in C with various optimizations to be used for \
 load tests as well as unit and black box spec compliance tests.\n\n";
 
 #include <unistd.h>
@@ -27,61 +27,76 @@ load tests as well as unit and black box spec compliance tests.\n\n";
 #include <pcre2.h>
 
 int diff_flag = 0,
-    verbose_flag = 0;
+    verbose_flag = 0,
+    trace_flag = 0;
 
 #define VERBOSE if (verbose_flag) printf
+#define TRACE if (trace_flag) printf
 
 const size_t MAX_BLOCK_SIZE = (1<<20);
 const size_t MAX_LINE_SIZE = (1<<19);
 
-pcre2_code **collapsibles = NULL;
-char **collapsible_names = NULL;
+#define MAX_CLP_RULES 32
+pcre2_code *collapsibles[MAX_CLP_RULES];
+char *collapsible_names[MAX_CLP_RULES];
 int collapsible_count = 0;
 
 int parse_collapsible_expressions (FILE* file) {
-    size_t collapsible_array_size = 128;
-    size_t ptrsize = sizeof(pcre2_code *);
-    collapsibles = malloc(ptrsize*collapsible_array_size);
-    unsigned char* pattern = NULL;
-    size_t plength = 0, psize = 0;
+    char *clp_rule = NULL;
+    ssize_t plength = 0;
+    size_t rsize = 0;
     int errorcode = 0;
     size_t erroroffset;
     
-    while ( 0 < (plength=getline((char**)&pattern,&psize,file)) ) {
+    while ( 0 < (plength=getline((char**)&clp_rule,&rsize,file)) ) {
         if (plength<=1) continue; // empty line;
-        // PARSE:  ^regex \s string
-        collapsibles[collapsible_count] = pcre2_compile (
-               pattern,
-               plength-1,
+        TRACE("collapsible: %s\n", clp_rule);
+        char *end = strstr(clp_rule,"\n");
+        if (end) *end = 0;
+        char *pattern = strstr(clp_rule," ");
+        if (!pattern) {
+            fprintf(stderr,"invalid pattern: %s\n",clp_rule);
+            continue;
+        }
+        for (;*pattern==' '; *pattern=0, pattern++);
+        collapsible_names[collapsible_count] = clp_rule;
+        
+         pcre2_code *re = pcre2_compile (
+               (PCRE2_SPTR)pattern,
+               end-pattern,
                0,
                &errorcode,
                &erroroffset,
                NULL
         );
-        if (errorcode) {
+        
+        if (re) {
+            collapsibles[collapsible_count] = re;
+        } else {
             PCRE2_UCHAR errmsg[1024];
             pcre2_get_error_message(errorcode, errmsg, 1024);
             fprintf(stderr,"collapsible pcre compile error: %s", errmsg);
+        }
+        if (++collapsible_count == MAX_CLP_RULES) {
+            fprintf(stderr,"%i rules max\n",MAX_CLP_RULES);
             break;
         }
-        if (collapsible_count++ == collapsible_array_size) {
-            collapsible_array_size<<=1;
-            collapsibles = realloc(collapsibles, ptrsize);
-        }
+        clp_rule = NULL;
     }
+    VERBOSE("parsed %i expressions\n", collapsible_count);
     
-    free(pattern);
     return collapsible_count;
 }
 
 
-struct buf_t { // FIXME iovec
+struct buf_t {
     char*  buf;
     size_t len;
 };
 
 const suseconds_t SURE_WAIT = 100000; // 100ms
 
+// TODO flashbuf_t !
 size_t MEM_SIZE = 1<<20;
 
 char  * mem;
@@ -173,7 +188,6 @@ int read_till_delim (int file, char* delim, struct buf_t* buf, struct buf_t* sta
 
 ssize_t read_cycle(int file, struct buf_t* in_ref, struct buf_t* out_ref) {
     
-    // TODO EOF
     read_till_delim(file, SEPARATOR_RES, in_ref, &stash_buf);
     int eoff = read_till_delim(file, SEPARATOR_REQ, out_ref, &stash_buf);
     
@@ -190,8 +204,8 @@ ssize_t write_cycle(int file, struct buf_t req, struct buf_t res) {
 
 struct buf_t collapse (struct buf_t orig) {
     struct buf_t buf = orig;
-    size_t len = 0;
     for(int i=0; i<collapsible_count; i++) {
+        size_t len = mem_tail - mem_head; // TODO flashbuf_t
         int subs = pcre2_substitute
                          (collapsibles[i],
                           (PCRE2_SPTR)buf.buf,
@@ -205,10 +219,14 @@ struct buf_t collapse (struct buf_t orig) {
                           (PCRE2_UCHAR*)mem_head,
                           &len
                          );
-        if (subs) {
+        if (subs>0) {
             buf.buf = mem_head;
             buf.len = len;
             mem_head += len;
+        } else if (subs<0) {
+            PCRE2_UCHAR errmsg[1024];
+            pcre2_get_error_message(subs, errmsg, 1024);
+            fprintf(stderr,"collapsible pcre compile error: %s", errmsg);
         }
     }
     return buf;
@@ -274,7 +292,7 @@ int main(int argc, char * const * argv) {
     signal (SIGPIPE, sigpipe_handler);
     int fails = 0, tests = 0;
     
-    while ((c = getopt(argc, argv, "vS:C:s:Rr:t:T:m:d")) != -1) {
+    while ((c = getopt(argc, argv, "vVdS:C:s:Rr:t:T:m:c:")) != -1) {
         switch(c) {
             case 'S': // server
                 if ( -1 == open_process(optarg,server) )  {
@@ -341,7 +359,7 @@ int main(int argc, char * const * argv) {
                 }
                 break;
             case 'c': // collapsibles
-                if ( ! (clp_file = fopen(optarg,O_RDONLY)) ) {
+                if ( ! (clp_file = fopen(optarg,"r")) ) {
                     fprintf(stderr, "can't open collapsibles: %s", strerror(errno));
                     return -1;
                 } else {
@@ -354,6 +372,10 @@ int main(int argc, char * const * argv) {
                 break;
             case 'v':
                 verbose_flag = 1;
+                break;
+            case 'V':
+                trace_flag = 1;
+                break;
         }
     }
     
