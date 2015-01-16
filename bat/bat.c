@@ -22,6 +22,7 @@ load tests as well as unit and black box spec compliance tests.\n\n";
 #include <math.h>
 #include <sys/stat.h>
 #include <sys/select.h>
+#include <signal.h>
 
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
@@ -163,19 +164,20 @@ char SEPARATOR_RES[64] = "<~";
 int read_till_delim (int file, char* delim, struct buf_t* buf, struct buf_t* stash) {
     // start with the stash
     memcpy(mem_head,stash->buf,stash->len);
+    mem_head[stash->len] = 0;
     ssize_t len=stash->len, r=0;
     char* loc=NULL;
-    while (!(loc=strnstr(mem_head, delim, len))) {
+    while (!(loc=strstr(mem_head, delim))) {
         r = read(file, mem_head+len, MAX_READ);
-        if (r>0) {
-            len += r;
-        } else if (r==0) { // EOF
+        if (r==0) { // EOF
             loc = mem_head + len;
             break;
-        } else {
+        } else if (r<0) {
             perror("read fail");
             exit(-8);
         }
+        len += r;
+        mem_head[len] = 0;
     }
     size_t dlen = strlen(delim);
     buf->buf = mem_head + dlen;
@@ -204,7 +206,8 @@ ssize_t write_cycle(int file, struct buf_t req, struct buf_t res) {
 
 struct buf_t collapse (struct buf_t orig) {
     struct buf_t buf = orig;
-    for(int i=0; i<collapsible_count; i++) {
+    int i;
+    for(i=0; i<collapsible_count; i++) {
         size_t len = mem_tail - mem_head; // TODO flashbuf_t
         int subs = pcre2_substitute
                          (collapsibles[i],
@@ -244,9 +247,10 @@ int compare_bufs (struct buf_t ref, struct buf_t fact) {
 int open_process (const char* command, int fildes[2]) {
     char _command[1024];
     strcpy(_command, command);
-    char* prog = strtok(_command," ");
     char* args[10];
-    for(int i=0; i<10 && (args[i]=strtok(NULL," ")); i++);
+    char* prog = args[0] = strtok(_command," ");
+    int i;
+    for(i=1; i<10 && (args[i]=strtok(NULL," ")); i++);
     
     int pipe_in[2], pipe_out[2];
     if (pipe(pipe_in)==-1 || pipe(pipe_out)==-1) {
@@ -340,7 +344,7 @@ int main(int argc, char * const * argv) {
                     timetv.tv_usec =
                         (suseconds_t) ((int)(timef*1000000)%1000000);
                     timetv.tv_sec =
-                        (time_t) lrintf(timef);
+                        (time_t) (int) timef;
                 } else {
                     fprintf(stderr,"expected time format: sec.usec");
                 }

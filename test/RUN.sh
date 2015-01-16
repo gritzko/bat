@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PATH=../build/bat/Build/Products/Debug/:$PATH
+PATH=../build/bat/Build/Products/Debug/:../build/:$PATH
 
 function report {
 	RET=$?
@@ -20,7 +20,7 @@ bat -S cat -s 09.txt -R
 report
 
 TEST="RUN SH"
-bat -v -S sh -s 2x2.txt
+bat -v -S bash -s 2x2.txt
 report
 
 TEST="TEST x2 SCRIPT"
