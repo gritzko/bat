@@ -6,8 +6,8 @@ all:: prepare build test todo
 test::
 	cd test && ./RUN.sh
 
-build:: bat/bat.c
-	gcc -o build/bat bat/bat.c $(PATHS) -lpcre2-8
+build::
+	clang -g -o build/bat src/bat.c $(PATHS) -lpcre2-8
 
 prepare:
 	if [ ! -e build/ ]; then mkdir build; fi

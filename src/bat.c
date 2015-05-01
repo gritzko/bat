@@ -3,16 +3,33 @@
 //  Copyright (c) 2015 Victor Grishchenko. All rights reserved.
 const char help[] =
 "BAT - Blackbox Automated Testing\n\
-The tool does replay-and-compare blackbox testing with some twists. \
-Input and output are generally supposed to be line-based. \
-But in fact, BAT works in terms of input/output blocks. \
-An input block is read from the script file and fed to the program; \
-the resulting output is compared with the expected one. \
-The output is not necessarily static as it may include timestamps, \
-variable whitespace etc. For that purpose, the user may define PCRE \
-regular expressions to collapse or unify those variable pieces. \
-The tool is written in C with various optimizations to be used for \
-load tests as well as unit and black box spec compliance tests.\n\n";
+The tool does replay-and-compare blackbox testing with some twists. \n\
+Input and output works in terms of input/output blocks. For example, \n\
+an input block is read from the script file and fed to the program; \n\
+the resulting output is compared with the expected one. Or, two programs \n\
+are run together, their exchange recorded for later replay. As bat\n\
+has no knowledge of protocol semantics, I/O blocks are delay based, e.g.\n\
+10ms silence means end-of-block. Thus, recording may be slow. Replaying, \n\
+on the other hand, does not need delays (mostly), so it is fast. \n\
+Program's output is not necessarily static as it may include timestamps, \n\
+variable whitespace etc. For that purpose, the user may define PCRE \n\
+regular expressions to collapse or unify those variable pieces. \n\
+The tool is written in C with various optimizations to be used for \n\
+load tests as well as unit and black box spec compliance tests.\n\n\
+Options:\n\
+-h help\n\
+-S server process (command)\n\
+-C client process (command)\n\
+-r record the session to stdout\n\
+-R record the session to a file (file name)\n\
+-s script (likely, a past record to replay to a server or a client)\n\
+-t time to wait after the process gives a correct response; maybe\n\
+   it will add something that will make it incorrect (sec.usec)\n\
+-T time to wait after the process gives an incorrect response; maybe\n\
+   it will add something that will make it correct (sec.usec)\n\
+-m size of memory buffers to allocate (bytes, default 1 megabyte)\n\
+-c collapsible patterns (file format: NAME-SPACE-PCRE-NEWLINE, repeat)\n\
+\n";
 
 #include <unistd.h>
 #include <stdio.h>
@@ -48,7 +65,7 @@ int parse_collapsible_expressions (FILE* file) {
     size_t rsize = 0;
     int errorcode = 0;
     size_t erroroffset;
-    
+
     while ( 0 < (plength=getline((char**)&clp_rule,&rsize,file)) ) {
         if (plength<=1) continue; // empty line;
         TRACE("collapsible: %s\n", clp_rule);
@@ -61,7 +78,7 @@ int parse_collapsible_expressions (FILE* file) {
         }
         for (;*pattern==' '; *pattern=0, pattern++);
         collapsible_names[collapsible_count] = clp_rule;
-        
+
          pcre2_code *re = pcre2_compile (
                (PCRE2_SPTR)pattern,
                end-pattern,
@@ -70,7 +87,7 @@ int parse_collapsible_expressions (FILE* file) {
                &erroroffset,
                NULL
         );
-        
+
         if (re) {
             collapsibles[collapsible_count] = re;
         } else {
@@ -85,7 +102,7 @@ int parse_collapsible_expressions (FILE* file) {
         clp_rule = NULL;
     }
     VERBOSE("parsed %i expressions\n", collapsible_count);
-    
+
     return collapsible_count;
 }
 
@@ -189,10 +206,10 @@ int read_till_delim (int file, char* delim, struct buf_t* buf, struct buf_t* sta
 }
 
 ssize_t read_cycle(int file, struct buf_t* in_ref, struct buf_t* out_ref) {
-    
+
     read_till_delim(file, SEPARATOR_RES, in_ref, &stash_buf);
     int eoff = read_till_delim(file, SEPARATOR_REQ, out_ref, &stash_buf);
-    
+
     return eoff;
 }
 
@@ -251,13 +268,13 @@ int open_process (const char* command, int fildes[2]) {
     char* prog = args[0] = strtok(_command," ");
     int i;
     for(i=1; i<10 && (args[i]=strtok(NULL," ")); i++);
-    
+
     int pipe_in[2], pipe_out[2];
     if (pipe(pipe_in)==-1 || pipe(pipe_out)==-1) {
         perror("pipe open fails");
         exit(1);
     }
-    
+
     pid_t pid = fork();
     if (pid == 0) { // child
         while ((dup2(pipe_in[1], STDOUT_FILENO) == -1) && (errno==EINTR));
@@ -268,9 +285,9 @@ int open_process (const char* command, int fildes[2]) {
         close(pipe_out[0]);
         extern char **environ;
         environ = NULL;
-        
+
         execvp(prog, args); // execvp
-        
+
         perror("exec failed");
         _exit(1);
     }
@@ -283,8 +300,8 @@ int open_process (const char* command, int fildes[2]) {
 
 
 int main(int argc, char * const * argv) {
-    
-    int c;
+
+    int c, opts=0;
     extern char *optarg;
     extern int errno;
     int client[] = {0,0}, server[] = {0,0};
@@ -295,9 +312,13 @@ int main(int argc, char * const * argv) {
     struct timeval timetv = {0,0};
     signal (SIGPIPE, sigpipe_handler);
     int fails = 0, tests = 0;
-    
-    while ((c = getopt(argc, argv, "vVdS:C:s:Rr:t:T:m:c:")) != -1) {
+
+    while ((c = getopt(argc, argv, "hvVdS:C:s:Rr:t:T:m:c:")) != -1) {
+        opts++;
         switch(c) {
+            case 'h':
+                printf("%s",help);
+                return 0;
             case 'S': // server
                 if ( -1 == open_process(optarg,server) )  {
                     perror("fork failed for the server");
@@ -350,7 +371,7 @@ int main(int argc, char * const * argv) {
                 }
                 if (c=='t') {
                     ANYTHING_ELSE_WAIT = timetv;
-                } else {
+                } else { // T
                     ARE_YOU_SURE_WAIT = timetv;
                 }
                 break;
@@ -382,20 +403,24 @@ int main(int argc, char * const * argv) {
                 break;
         }
     }
-    
+    if (!opts) {
+        printf("%s",help);
+        return 0;
+    }
+
     mem = malloc(MEM_SIZE);
     mem_head = mem;
     mem_tail = mem + MEM_SIZE;
-    
+
     struct buf_t in_ref = {NULL,0}, out_ref = {NULL,0};
     struct buf_t in_buf = {NULL,0}, out_buf = {NULL,0};
     ssize_t scr=0;
-    
+
     if (!script && !(*client&&*server)) {
         // what?!
         return -2;
     }
-    
+
     do {
         if (script) {
             scr = read_cycle(script, &in_ref, &out_ref);
@@ -419,6 +444,12 @@ int main(int argc, char * const * argv) {
                 } else {
                     fails++;
                     printf("FAIL\n");
+                    if (diff_flag) {
+                        fprintf(stderr, "EXPECTED:\n");
+                        write_buf(2, out_ref);
+                        fprintf(stderr, "RECEIVED:\n");
+                        write_buf(2, out_buf);
+                    }
                 }
             }
         }
@@ -432,14 +463,14 @@ int main(int argc, char * const * argv) {
         }
         free_bufs();
     } while ( (script&&scr>0) || (!script && (in_buf.len || out_buf.len)) );
-    
-    
+
+
     if (client[0]) close(client[0]);
     if (client[1]) close(client[1]);
     if (server[0]) close(server[0]);
     if (server[1]) close(server[1]);
     if (script) close(script);
     if (record) close(record);
-    
+
     return fails;
 }
